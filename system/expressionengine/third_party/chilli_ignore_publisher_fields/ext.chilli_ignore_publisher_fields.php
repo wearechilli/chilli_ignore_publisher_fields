@@ -85,20 +85,58 @@ class Chilli_ignore_publisher_fields_ext
      */
      public function cp_menu_array($menu)
     {
-        if ( !ee()->publisher_language->is_default_language() )
-        {
-            $fields = json_encode( ee()->publisher_setting->ignored_fields(1) );
-            $script = "
-                var fields = ".$fields.";
-                console.log ( fields );
-                jQuery.each( fields, function( i, val ) {
-                    Publisher.add_field_cover (  $( '#field_id_' + val  ) );
-                    $( '#field_id_' + val  ).prop( 'readonly', 'readonly' );
-                });
-            ";
-            ee()->javascript->output( $script );
-        }
 
+         //check to see if Publisher is an installed add-on
+        ee()->db->select( 'module_id' );
+        ee()->db->where( 'module_name', 'Publisher' );
+
+        $q = $this->EE->db->get( 'modules' );
+
+        $publisher_installed = ( $q->num_rows() > 0 );
+
+        $q->free_result();
+
+        if ( $publisher_installed )
+        {
+
+            if ( !ee()->publisher_language->is_default_language() )
+            {
+                ee()->load->model('publisher_model');
+                
+                // get all the ignorde fields and re-arrange them like field_id_xx
+                $fields =  ee()->publisher_setting->ignored_fields(1);
+                foreach( $fields as $key => $field )
+                {
+                    $fields[$key] = "field_id_" . $field;
+                }
+                $encoded_fields = "";
+                $encoded_fields = json_encode( $fields );
+                $script = "
+                    var fields = ".$encoded_fields.";
+                    jQuery.each( fields, function( i, val ) {
+
+                        name_val = 'name='+ val ;
+
+                        element_by_id = $( '#' + val  ) ;
+                        element_by_name = $('['+ name_val +']') ;
+
+                        if ( element_by_id.length != 0 )
+                        {
+                            Publisher.add_field_cover (  element_by_id  );
+                            element_by_id.prop( 'readonly', 'readonly' );
+                        }
+                        else if ( element_by_name !== false )
+                        {
+                            Publisher.add_field_cover (  element_by_name );
+                        }
+
+                    });
+                ";
+
+                ee()->javascript->output( $script );
+
+            }
+        }
         if (ee()->extensions->last_call !== FALSE)
         {
             $menu = ee()->extensions->last_call;
